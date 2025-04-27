@@ -1,13 +1,14 @@
 
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
 
 class GlobalThresholding:
-    def __init__(self, image):
+    def __init__(self, image_path):
         # image must already be grayscale!
-        self.image = image  
+        self.image = self.read_image(image_path)
 
-    def optimal_thresholding(self, initial_threshold=128, tolerance=0.5):
+    def optimal_thresholding(self, initial_threshold=128, tolerance=0.25):
         gray_image = self.image
         threshold = initial_threshold if initial_threshold is not None else gray_image.mean()
         previous_threshold = 0
@@ -60,3 +61,44 @@ class GlobalThresholding:
 
         binary_result = (gray_image >= threshold).astype(np.uint8) * 255
         return binary_result
+    
+    def read_image(self, image_path):
+        img = cv2.imread(image_path)
+        if img is None:
+            raise ValueError(f"Failed to load image from {image_path}")
+
+        # Convert to grayscale if image is colored
+        if len(img.shape) == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        return img
+    
+    def test_thresholding(self):
+        # Apply both methods
+        optimal_result = self.optimal_thresholding()
+        otsu_result = self.otsu_thresholding()
+
+        # Plot all results
+        plt.figure(figsize=(15,5))
+
+        plt.subplot(1,3,1)
+        plt.imshow(self.image, cmap='gray')
+        plt.title('Original Image')
+        plt.axis('off')
+
+        plt.subplot(1,3,2)
+        plt.imshow(optimal_result, cmap='gray')
+        plt.title('Optimal Thresholding')
+        plt.axis('off')
+
+        plt.subplot(1,3,3)
+        plt.imshow(otsu_result, cmap='gray')
+        plt.title('Otsu\'s Thresholding')
+        plt.axis('off')
+
+        plt.tight_layout()
+        plt.show()
+        
+# gt = GlobalThresholding("") ## add image path here
+# gt.test_thresholding()
+    

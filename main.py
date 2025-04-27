@@ -40,6 +40,7 @@ class MainWindow(QMainWindow):
 
     def load_image(self):
         file_name, _ = QFileDialog.getOpenFileName(self, "Open Image File", "", "Images (*.png *.jpg *.jpeg *.bmp)")
+        self.path = file_name
         if file_name:
             self.original_image = cv2.imread(file_name)
             if self.original_image is None:
@@ -62,7 +63,7 @@ class MainWindow(QMainWindow):
         if self.gray_image is None:
             return
 
-        thresholding = GlobalThresholding(self.gray_image)
+        thresholding = GlobalThresholding(self.path)
 
         if self.otsu_check.isChecked():
             result = thresholding.otsu_thresholding()
