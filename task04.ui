@@ -319,7 +319,7 @@ border:3px solid #D4D7D8;
      <string>Optimal Thresholding</string>
     </property>
    </widget>
-   <widget class="QRadioButton" name="ostu">
+   <widget class="QRadioButton" name="otsu">
     <property name="geometry">
      <rect>
       <x>40</x>
@@ -341,7 +341,7 @@ border:3px solid #D4D7D8;
  text-transform: uppercase;</string>
     </property>
     <property name="text">
-     <string>Ostu</string>
+     <string>Otsu</string>
     </property>
    </widget>
    <widget class="QRadioButton" name="spectralone">
@@ -596,7 +596,7 @@ font-weight:bold;</string>
    <zorder>local</zorder>
    <zorder>global</zorder>
    <zorder>Optimal</zorder>
-   <zorder>ostu</zorder>
+   <zorder>otsu</zorder>
    <zorder>spectralone</zorder>
    <zorder>spectraltwo</zorder>
    <zorder>kMeans</zorder>
