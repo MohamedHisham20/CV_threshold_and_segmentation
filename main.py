@@ -1,5 +1,6 @@
 ## main.py
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton, QLabel, QScrollArea, QFileDialog, QRadioButton, QButtonGroup, QMessageBox, QSpinBox
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton, QLabel, QScrollArea, \
+    QFileDialog, QRadioButton, QButtonGroup, QMessageBox, QSpinBox, QSlider
 from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtCore import Qt
 import cv2
@@ -8,7 +9,7 @@ from PyQt5 import uic
 from OtsuAndOptimal import OtsuAndOptimal  
 import numpy as np
 
-from seed_widget import RegionGrowingDialog
+from seed_widget import RegionGrowingDialog, kmeans, cv2_to_qimage, kmeans_result_to_qimage
 
 
 class MainWindow(QMainWindow):
@@ -34,6 +35,10 @@ class MainWindow(QMainWindow):
         self.windowsize_spinbox = self.ui.findChild(QSpinBox, "windowsize")
 
         self.regionGrowing_check = self.ui.findChild(QRadioButton, "regionGrowing")
+        self.kmeans_check = self.ui.findChild(QRadioButton, "kMeans")
+
+        self.iterations_slider = self.ui.findChild(QSlider, "iterationsHorizontalSlider")
+        self.iterationsLabel = self.ui.findChild(QLabel, "iterationsLabel")
         
         self.mode_gp = QButtonGroup(self)
         self.mode_gp.setExclusive(True)
@@ -52,6 +57,12 @@ class MainWindow(QMainWindow):
 
         # Connect radio buttons
         self.regionGrowing_check.toggled.connect(self.apply_region_growing)
+        self.kmeans_check.toggled.connect(self.apply_kmeans)
+
+        self.iterations_slider.setMinimum(1)
+        self.iterations_slider.setMaximum(100)
+        self.iterations_slider.setValue(10)
+        self.iterations_slider.valueChanged.connect(self.update_iterations_label)
 
         # Variables to hold images
         self.original_image = None  # colored image
@@ -139,26 +150,22 @@ class MainWindow(QMainWindow):
         self.show_message(message)
 
     def apply_region_growing(self):
-        if self.original_image is None:
-            self.show_message("Please load an image first")
-            return
+        if self.regionGrowing_check.isChecked():
+            self.kmeans_check.setChecked(False)
 
-        # # Create the dialog and pass the current image
-        # rgb_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
-        # height, width, channel = rgb_image.shape
-        # bytes_per_line = 3 * width
-        # q_image = QImage(rgb_image.data.copy(), width, height, bytes_per_line, QImage.Format_RGB888)
+            if self.original_image is None:
+                self.show_message("Please load an image first")
+                return
 
-        # print('before dialoge')
-        # Create the dialog with the current image
-        dialog = RegionGrowingDialog(self, self.original_image)
-        # print('after dialoge')
+            # Create the dialog with the current image
+            dialog = RegionGrowingDialog(self, self.original_image)
 
-        # Connect signal to handle the result
-        dialog.segmentationCompleted.connect(self.handle_region_growing_result)
 
-        # Show dialog as modal (blocks interaction with main window until closed)
-        dialog.exec_()
+            # Connect signal to handle the result
+            dialog.segmentationCompleted.connect(self.handle_region_growing_result)
+
+            # Show dialog as modal (blocks interaction with main window until closed)
+            dialog.exec_()
 
     def handle_region_growing_result(self, result_image):
         # Convert QImage to pixmap and set it in the output label
@@ -169,6 +176,26 @@ class MainWindow(QMainWindow):
         self.output_label.setPixmap(pixmap)
         self.show_message("Region growing segmentation completed!")
 
+    def apply_kmeans(self):
+        if self.kmeans_check.isChecked():
+            self.regionGrowing_check.setChecked(False)
+            # Check if an image is loaded
+            if self.original_image is None:
+                self.show_message("Please load an image first")
+                return
+
+            result_image = kmeans(self.original_image,k=3, max_iters=self.iterations_slider.value())
+            # Convert the result image to QImage
+            q_image = kmeans_result_to_qimage(result_image)
+            # Display the result image
+            self.output_label.setPixmap(QPixmap.fromImage(q_image))
+            self.show_message("K-means segmentation completed!")
+
+    def update_iterations_label(self):
+        # Get the current value of the slider
+        iterations = self.iterations_slider.value()
+        # Update the label or any other UI element to show the current value
+        self.ui.iterationsLabel.setText(f"{iterations}")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

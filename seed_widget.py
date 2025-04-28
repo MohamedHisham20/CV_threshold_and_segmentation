@@ -25,7 +25,7 @@ def create_random_centroids(pixels, k):
     return centroids
 
 
-def kmeans(image, k, max_iters=100):
+def kmeans(image, k=3, max_iters=100):
     if len(image.shape) == 3:
         # Reshape the image to a 2D array of pixels
         pixels = image.reshape(-1, 3)
@@ -74,6 +74,34 @@ def kmeans(image, k, max_iters=100):
 
     return segmented_image
 
+
+def kmeans_result_to_qimage(segmented_image):
+    """Convert the K-means segmentation result to a QImage"""
+    # Make sure the data is in the correct format for QImage
+    if segmented_image.dtype != np.uint8:
+        # Scale values to 0-255 range
+        if segmented_image.max() > 1.0:
+            # Already in a higher range
+            segmented_image = np.clip(segmented_image, 0, 255).astype(np.uint8)
+        else:
+            # Scale from [0,1] to [0,255]
+            segmented_image = (segmented_image * 255).astype(np.uint8)
+
+    # Ensure memory is contiguous
+    segmented_image = np.ascontiguousarray(segmented_image)
+
+    # Convert to QImage
+    height, width = segmented_image.shape[:2]
+
+    if len(segmented_image.shape) == 3:
+        # RGB image
+        bytes_per_line = 3 * width
+        return QImage(segmented_image.data, width, height,
+                      bytes_per_line, QImage.Format_RGB888).copy()
+    else:
+        # Grayscale image
+        return QImage(segmented_image.data, width, height,
+                      width, QImage.Format_Grayscale8).copy()
 
 def qimage_to_numpy(qimage):
     """Convert QImage to numpy array safely with explicit data copying"""
