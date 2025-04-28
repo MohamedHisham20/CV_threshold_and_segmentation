@@ -96,54 +96,60 @@ def region_growing(image, seeds, threshold=10):
         gray_image = image.copy()
 
     height, width = gray_image.shape
-    segmentation = np.zeros((height, width), dtype=np.uint8)
+    # create segmentation to draw over the image for all seeds
+    overall_segmentation = np.zeros((height, width), dtype=np.uint8)
+    # initialize segment for each seed
+    seed_segment = np.zeros((height, width), dtype=np.uint8)
 
-    # Process each seed point separately
+    # Process each seed point separately (start enumerate from 1 to multiply by)
     for seed_idx, (seed_x, seed_y) in enumerate(seeds, 1):
         # Skip if out of bounds
-        if not (0 <= seed_x < width and 0 <= seed_y < height):
-            continue
+        if 0 <= seed_x < width and 0 <= seed_y < height:
+            # to address if it is visited or not
+            visited = np.zeros((height, width), dtype=bool)
+            # reset segment for each seed
+            seed_segment = np.zeros((height, width), dtype=np.uint8)
 
-        visited = np.zeros((height, width), dtype=bool)
-        segment = np.zeros((height, width), dtype=np.uint8)
+            # Get seed pixel value
+            seed_value = gray_image[seed_y, seed_x]
 
-        # Get seed pixel value
-        seed_value = gray_image[seed_y, seed_x]
+            # Initialize queue with seed ( the only (x,y) and the rest are (y,x)
+            processing_queue = [(seed_x, seed_y)]
+            visited[seed_y, seed_x] = True
+            seed_segment[seed_y, seed_x] = 1
 
-        # Initialize queue with seed
-        queue = [(seed_x, seed_y)]
-        visited[seed_y, seed_x] = True
-        segment[seed_y, seed_x] = 1
+            # # Define 4-connected neighbors
+            # neighbors = [(-1, 0), (1, 0), (0, -1), (0, 1)]
 
-        # Define 4-connected neighbors
-        neighbors = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+            # test 8 neighbors
+            neighbors = [
+                (-1, -1), (-1, 0), (-1, 1),
+                (0, -1),         (0, 1),
+                (1, -1), (1, 0), (1, 1)
+            ]
 
-        # Process queue
-        while queue:
-            x, y = queue.pop(0)
+            # Process queue
+            while processing_queue:
+                x, y = processing_queue.pop(0)
 
-            for dx, dy in neighbors:
-                nx, ny = x + dx, y + dy
+                for dx, dy in neighbors:
+                    nx, ny = x + dx, y + dy
 
-                # Check bounds
-                if not (0 <= nx < width and 0 <= ny < height):
-                    continue
-
-                # Skip if already visited
-                if visited[ny, nx]:
-                    continue
-
-                # Check if pixel is within threshold
-                pixel_value = gray_image[ny, nx]
-                if abs(int(pixel_value) - int(seed_value)) <= threshold:
-                    visited[ny, nx] = True
-                    segment[ny, nx] = 1
-                    queue.append((nx, ny))
+                    # Check bounds
+                    if 0 <= nx < width and 0 <= ny < height:
+                        # Skip if already visited
+                        if not visited[ny, nx]:
+                            visited[ny, nx] = True
+                            # Check if pixel is within threshold
+                            pixel_value = gray_image[ny, nx]
+                            if abs(int(pixel_value) - int(seed_value)) <= threshold:
+                                seed_segment[ny, nx] = 1
+                                processing_queue.append((nx, ny))
 
         # Add this segment to the final segmentation
-        segmentation = np.maximum(segmentation, segment * seed_idx)
+        overall_segmentation = np.maximum(overall_segmentation, seed_segment * seed_idx)
 
-    return segmentation
+    return overall_segmentation
 
 class SeedPixelWidget(QWidget):
     # Signal to notify when seeds have changed
