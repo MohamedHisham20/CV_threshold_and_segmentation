@@ -1,3 +1,4 @@
+## main.py
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton, QLabel, QScrollArea, QFileDialog, QRadioButton, QButtonGroup, QMessageBox, QSpinBox
 from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtCore import Qt
@@ -7,7 +8,7 @@ from PyQt5 import uic
 from OtsuAndOptimal import OtsuAndOptimal  
 import numpy as np
 
-from seed_widget import RegionGrowingApp
+from seed_widget import RegionGrowingDialog
 
 
 class MainWindow(QMainWindow):
@@ -138,13 +139,35 @@ class MainWindow(QMainWindow):
         self.show_message(message)
 
     def apply_region_growing(self):
-        self.region_grow_app = RegionGrowingApp()
-        self.region_grow_app.regionGrowingDone.connect(self.handle_region_growing_result)
-        self.region_grow_app.show()
+        if self.original_image is None:
+            self.show_message("Please load an image first")
+            return
+
+        # # Create the dialog and pass the current image
+        # rgb_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
+        # height, width, channel = rgb_image.shape
+        # bytes_per_line = 3 * width
+        # q_image = QImage(rgb_image.data.copy(), width, height, bytes_per_line, QImage.Format_RGB888)
+
+        # print('before dialoge')
+        # Create the dialog with the current image
+        dialog = RegionGrowingDialog(self, self.original_image)
+        # print('after dialoge')
+
+        # Connect signal to handle the result
+        dialog.segmentationCompleted.connect(self.handle_region_growing_result)
+
+        # Show dialog as modal (blocks interaction with main window until closed)
+        dialog.exec_()
 
     def handle_region_growing_result(self, result_image):
-        self.output_label.setPixmap(QPixmap.fromImage(result_image))  # Save the result into your main
-        print("Segmentation completed and result stored!")
+        # Convert QImage to pixmap and set it in the output label
+        # plot the result image
+
+        pixmap = QPixmap.fromImage(result_image)
+
+        self.output_label.setPixmap(pixmap)
+        self.show_message("Region growing segmentation completed!")
 
 
 if __name__ == "__main__":

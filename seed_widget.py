@@ -1,3 +1,4 @@
+## seed_widget.py
 import cv2
 from PyQt5.QtCore import Qt, QPointF, pyqtSignal
 from PyQt5.QtGui import QPainter, QPen, QColor, QPixmap, QImage
@@ -5,7 +6,7 @@ import sys
 import numpy as np
 from PyQt5.QtWidgets import (QMainWindow, QApplication, QWidget,
                              QVBoxLayout, QHBoxLayout, QLabel,
-                             QPushButton, QComboBox, QFileDialog, QSlider)
+                             QPushButton, QComboBox, QFileDialog, QSlider, QDialog)
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import Qt
 
@@ -74,26 +75,59 @@ def kmeans(image, k, max_iters=100):
     return segmented_image
 
 
-def qimage_to_cv2(qimage):
-    qformat = qimage.format()
-
-    if qformat == QImage.Format_Grayscale8:
-        width = qimage.width()
-        height = qimage.height()
-        ptr = qimage.bits()
-        ptr.setsize(height * width)
-        arr = np.frombuffer(ptr, dtype=np.uint8).reshape((height, width))
-        return arr
-    else:
+def qimage_to_numpy(qimage):
+    """Convert QImage to numpy array safely with explicit data copying"""
+    # Convert to RGB888 format if it's not already
+    if qimage.format() != QImage.Format_RGB888:
         qimage = qimage.convertToFormat(QImage.Format_RGB888)
-        width = qimage.width()
-        height = qimage.height()
-        ptr = qimage.bits()
-        ptr.setsize(height * width * 3)
-        arr = np.frombuffer(ptr, dtype=np.uint8).reshape((height, width, 3))
-        arr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
-        return arr
 
+    # Get dimensions
+    width = qimage.width()
+    height = qimage.height()
+
+    # Create a buffer with the image data
+    buffer = qimage.constBits()
+
+    # Create numpy array using buffer protocol with explicit copying
+    try:
+        # For newer PyQt versions
+        buffer_size = qimage.sizeInBytes()
+        arr = np.frombuffer(buffer.asarray(buffer_size), dtype=np.uint8).reshape(height, width, 3)
+    except AttributeError:
+        # For older PyQt versions
+        ptr = qimage.constBits()
+        ptr.setsize(height * width * 3)
+        arr = np.frombuffer(ptr, dtype=np.uint8).reshape(height, width, 3)
+
+    # Return a copy to ensure the data is not tied to the QImage's lifetime
+    return arr.copy()
+
+def cv2_to_qimage(cv_image):
+    """Convert OpenCV image to QImage with proper formatting"""
+    height, width = cv_image.shape[:2]
+
+    # Handle different image types
+    if len(cv_image.shape) == 2:  # Grayscale
+        # For segmentation masks, ensure they are properly scaled to 0-255
+        if cv_image.dtype != np.uint8:
+            # Scale values to 0-255 range if needed
+            cv_image = ((cv_image / cv_image.max()) * 255).astype(np.uint8)
+
+        # Create QImage from grayscale data
+        qimg = QImage(cv_image.data, width, height, width, QImage.Format_Grayscale8)
+        return QImage(qimg)  # Create a copy to ensure data ownership
+
+    elif len(cv_image.shape) == 3:  # RGB/BGR
+        # Convert BGR to RGB if needed (OpenCV uses BGR by default)
+        if cv_image.dtype != np.uint8:
+            cv_image = cv_image.astype(np.uint8)
+
+        rgb_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+        bytes_per_line = 3 * width
+        qimg = QImage(rgb_image.data, width, height, bytes_per_line, QImage.Format_RGB888)
+        return QImage(qimg)  # Create a copy to ensure data ownership
+
+    return None
 
 def rgb_to_luv_vectorized(image):
     # Normalize RGB to [0,1]
@@ -156,7 +190,7 @@ def region_growing(image, seeds, threshold=50, use_luv=True):
     """
     # convert qimage to cv2 image
     if isinstance(image, QImage):
-        image = qimage_to_cv2(image)
+        image = qimage_to_numpy(image)
 
     # Handle color space conversion
     if len(image.shape) == 3 and use_luv:
@@ -245,7 +279,7 @@ def region_growing(image, seeds, threshold=50, use_luv=True):
 
 
 class SeedPixelWidget(QWidget):
-    # Signal to notify when seeds have changed - change from Signal to pyqtSignal
+    # Signal to notify when seeds have changed
     seedsChanged = pyqtSignal(list)
     imageLoaded = pyqtSignal(QImage)
 
@@ -261,18 +295,16 @@ class SeedPixelWidget(QWidget):
         self.min_scale = 0.1
         self.max_scale = 5.0
 
-        # Store seeds as (x, y, cluster_id) tuples
+        # Store seeds as (x, y) tuples - removed cluster_id
         self.seeds = []
-        self.active_cluster = 1
-        self.num_clusters = 3  # Default K value
-        self.colors = [QColor(255, 0, 0), QColor(0, 255, 0), QColor(0, 0, 255),
-                       QColor(255, 255, 0), QColor(255, 0, 255), QColor(0, 255, 255)]
+        # Colors for seeds visualization
+        self.color = QColor(255, 0, 0)  # Use single color since we don't have clusters
 
         # State variables
         self.hovering_point = None
         self.dragging_seed = None
 
-        self.threshold = 50  # Default threshold for region growing
+        self.threshold = 70  # Default threshold for region growing
 
         # Set up the UI
         self.setup_ui()
@@ -389,19 +421,16 @@ class SeedPixelWidget(QWidget):
             painter.drawEllipse(self.hovering_point, 10, 10)
 
     def draw_seeds(self, painter, offset_x, offset_y):
-        """Draw all seed points with their cluster colors"""
-        for seed_x, seed_y, cluster_id in self.seeds:
+        """Draw all seed points"""
+        painter.setPen(QPen(Qt.black, 2))
+        painter.setBrush(self.color)
+
+        for seed_x, seed_y in self.seeds:
             # Convert image coordinates to widget coordinates
             x = offset_x + seed_x * self.scale_factor
             y = offset_y + seed_y * self.scale_factor
 
-            # Select color based on cluster ID (modulo number of colors)
-            color_index = (cluster_id - 1) % len(self.colors)
-            color = self.colors[color_index]
-
             # Draw seed marker
-            painter.setPen(QPen(Qt.black, 2))
-            painter.setBrush(color)
             painter.drawEllipse(QPointF(x, y), 8, 8)
 
     def mousePressEvent(self, event):
@@ -409,13 +438,12 @@ class SeedPixelWidget(QWidget):
             return
 
         # Check if clicking on an existing seed
-        for i, (seed_x, seed_y, cluster_id) in enumerate(self.seeds):
+        for i, (seed_x, seed_y) in enumerate(self.seeds):
             # Convert to widget coordinates
             x = (self.width() - self.display_image.width() * self.scale_factor) // 2 + seed_x * self.scale_factor
             y = (self.height() - self.display_image.height() * self.scale_factor) // 2 + seed_y * self.scale_factor
 
             # Check if click is within seed marker
-            # PyQt5 uses pos() instead of position()
             if (QPointF(x, y) - event.pos()).manhattanLength() < 10:
                 if event.button() == Qt.LeftButton:
                     self.dragging_seed = i
@@ -432,17 +460,14 @@ class SeedPixelWidget(QWidget):
             offset_x = (self.width() - self.display_image.width() * self.scale_factor) // 2
             offset_y = (self.height() - self.display_image.height() * self.scale_factor) // 2
 
-            # PyQt5 uses pos() instead of position()
             image_x = (event.pos().x() - offset_x) / self.scale_factor
             image_y = (event.pos().y() - offset_y) / self.scale_factor
 
             # Check if coordinates are within image bounds
             if (0 <= image_x < self.display_image.width() and
                     0 <= image_y < self.display_image.height()):
-                # For region growing, use cluster_id=1 for all seeds
-                cluster_id = 1
-
-                self.seeds.append((int(image_x), int(image_y), cluster_id))
+                # Add seed point as (x, y) only
+                self.seeds.append((int(image_x), int(image_y)))
                 self.seedsChanged.emit(self.seeds)
                 self.update()
 
@@ -454,7 +479,6 @@ class SeedPixelWidget(QWidget):
         offset_x = (self.width() - self.display_image.width() * self.scale_factor) // 2
         offset_y = (self.height() - self.display_image.height() * self.scale_factor) // 2
 
-        # PyQt5 uses pos() instead of position()
         image_x = (event.pos().x() - offset_x) / self.scale_factor
         image_y = (event.pos().y() - offset_y) / self.scale_factor
 
@@ -471,8 +495,8 @@ class SeedPixelWidget(QWidget):
         if self.dragging_seed is not None:
             if (0 <= image_x < self.display_image.width() and
                     0 <= image_y < self.display_image.height()):
-                seed = self.seeds[self.dragging_seed]
-                self.seeds[self.dragging_seed] = (int(image_x), int(image_y), seed[2])
+                # Update seed position (x, y only)
+                self.seeds[self.dragging_seed] = (int(image_x), int(image_y))
                 self.seedsChanged.emit(self.seeds)
 
         self.update()
@@ -485,7 +509,6 @@ class SeedPixelWidget(QWidget):
         zoom_factor = 1.1
 
         # Zoom in/out based on wheel direction
-        # PyQt5's wheel event behaves differently
         if event.angleDelta().y() > 0:
             self.scale_factor = min(self.scale_factor * zoom_factor, self.max_scale)
         else:
@@ -495,183 +518,121 @@ class SeedPixelWidget(QWidget):
 
     def get_seed_pixels(self):
         """Return seed pixels in a format suitable for algorithms"""
-        # For region growing: just list of (x, y) points
-        return [(x, y) for x, y, _ in self.seeds]
-
-    def run_segmentation(self):
-        """Run the region growing algorithm and return the result"""
-        if not self.seeds:
-            print("no seed in run seg in seed pixel")
-            return None
-
-        print("run seg in seed pixel")
-
-        seed_pixels = self.get_seed_pixels()
-        result = region_growing(self.image, seed_pixels, threshold=self.threshold, use_luv=False)
-
-        # Convert numpy array result to QImage for display
-        height, width = result.shape[:2]
-        if len(result.shape) == 2:  # Grayscale result
-            bytes_per_line = width
-            q_image = QImage(result.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
-        else:  # RGB result
-            bytes_per_line = 3 * width
-            q_image = QImage(result.data, width, height, bytes_per_line, QImage.Format_RGB888)
-
-        # Update the display image
-        self.display_image = QPixmap.fromImage(q_image)
-        self.update()
-
-        return q_image  # Return the QImage result
-
-    # def run_region_growing(self):
-    #     """Run Region Growing with the selected seeds"""
-    #     print(f"Running Region Growing with {len(self.seeds)} seeds")
-    #     seed_pixels = self.get_seed_pixels()  # Get the seed pixels as (x,y) tuples
-    #     result = region_growing(self.image, seed_pixels, threshold=self.threshold, use_luv=False)
-    #
-    #     # Convert numpy array result to QImage for display
-    #     height, width = result.shape[:2]
-    #     if len(result.shape) == 2:  # Grayscale result
-    #         bytes_per_line = width
-    #         q_image = QImage(result.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
-    #     else:  # RGB result
-    #         bytes_per_line = 3 * width
-    #         q_image = QImage(result.data, width, height, bytes_per_line, QImage.Format_RGB888)
-    #
-    #     self.display_image = QPixmap.fromImage(q_image)
-    #     self.update()
+        # Seeds are already in (x, y) format, so just return them
+        return self.seeds
 
 
-class RegionGrowingApp(QMainWindow):
-    # Change Signal to pyqtSignal
-    regionGrowingDone = pyqtSignal(QImage)
+class RegionGrowingDialog(QDialog):
+    # Signal to return the segmentation result to the main window
+    segmentationCompleted = pyqtSignal(QImage)
 
-    def __init__(self):
-        super().__init__()
-        self.region_growing_result = None
-        self.setWindowTitle("Image Segmentation Tool")
-        self.resize(1000, 700)
+    def __init__(self, parent=None, image=None):
+        super().__init__(parent)
+        self.setWindowTitle("Region Growing Segmentation")
+        self.resize(800, 600)
 
-        self.image = None
-        self.segmentation_result = None
+        # Create main layout
+        main_layout = QVBoxLayout(self)
 
-        self.setup_ui()
+        self.cv_image = image
 
-    def setup_ui(self):
-        # Create central widget and layout
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        main_layout = QHBoxLayout(central_widget)
-        # Left panel - seed pixel widget
-        self.seed_widget = SeedPixelWidget()
+        # Create seed widget
+        self.seed_widget = SeedPixelWidget(self)
         self.seed_widget.seedsChanged.connect(self.handle_seeds_changed)
-        self.seed_widget.run_button.clicked.connect(self.run_segmentation)
-        self.seed_widget.imageLoaded.connect(self.update_image)  # Connect to new signal
 
-        # Add panel to main layout
-        main_layout.addWidget(self.seed_widget, 3)
+        # Set the image if provided
+        if image is not None:
+            self.seed_widget.set_image(image)
 
-    def update_image(self, image):
-        """Update the main image reference when loaded in widget"""
-        self.image = image
+        # Create button layout
+        button_layout = QHBoxLayout()
+
+        # Create buttons
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.reject)
+
+        self.apply_button = QPushButton("Apply Segmentation")
+        self.apply_button.clicked.connect(self.run_segmentation)
+
+        # Add buttons to layout
+        button_layout.addWidget(self.cancel_button)
+        button_layout.addWidget(self.apply_button)
+
+        # Add widgets to main layout
+        main_layout.addWidget(self.seed_widget)
+        main_layout.addLayout(button_layout)
+
+        # Store segmentation result
+        self.segmentation_result = None
 
     def handle_seeds_changed(self, seeds):
         """Handle changes in seed points"""
-        if self.segmentation_result:
-            # Clear result when seeds change
-            self.segmentation_result = None
+        # Reset result when seeds change
+        self.segmentation_result = None
 
     def run_segmentation(self):
-        """Coordinate the segmentation process and handle results"""
-        if not self.image or self.image.isNull():
-            print("No image loaded for run seg in region grow")
-            return
+        """Run the segmentation and emit the result"""
+        try:
+            seed_pixels = self.seed_widget.get_seed_pixels()
+            if not seed_pixels:
+                print('No seeds defined')
+                return
 
-        print("rung seg in region grow")
+            threshold = self.seed_widget.threshold
 
-        # Call the widget's segmentation function to run the algorithm
-        result_image = self.seed_widget.run_segmentation()
+            # Make sure we have a valid OpenCV image
+            if self.cv_image is None and self.seed_widget.image:
+                # Convert QImage to OpenCV format if necessary
+                self.cv_image = qimage_to_numpy(self.seed_widget.image)
 
-        if result_image:
-            # Store and emit the result
-            self.segmentation_result = result_image
-            self.regionGrowingDone.emit(result_image)
-            self.close()  # Optional: close the popup after emitting
+            if self.cv_image is not None:
+                # Run region growing
+                mask = region_growing(self.cv_image, seed_pixels, threshold=threshold, use_luv=False)
 
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = RegionGrowingApp()
-    window.show()
-    sys.exit(app.exec_())
+                # Make sure mask is properly formatted for display (0-255 uint8)
+                if mask.dtype != np.uint8:
+                    # Scale to full 8-bit range
+                    mask = (mask * 255 / mask.max()).astype(np.uint8)
 
-#     def display_segmentation_result(self):
-#         """Display the segmentation result on top of the input image"""
-#         if self.segmentation_result is None or self.image is None:
-#             return
-#
-#         # Get dimensions from segmentation result
-#         height, width = self.segmentation_result.shape
-#
-#         # Convert QImage image to numpy array
-#         image_array = self.qimage_to_numpy(self.image)
-#
-#         # Resize if necessary to match segmentation dimensions
-#         if image_array.shape[:2] != (height, width):
-#             image_array = cv2.resize(image_array, (width, height))
-#
-#         # Create result image using input image as background
-#         result = image_array.copy()
-#
-#         # Color each segment's boundary based on its label
-#         unique_labels = np.unique(self.segmentation_result)
-#
-#         for label in unique_labels:
-#             if label == 0:  # Skip background
-#                 continue
-#
-#             # Get color for this label
-#             color_idx = (label - 1) % len(self.seed_widget.colors)
-#             color = self.seed_widget.colors[color_idx]
-#             rgb_color = (color.red(), color.green(), color.blue())
-#
-#             # Get mask for this label
-#             label_mask = (self.segmentation_result == label).astype(np.uint8)
-#
-#             # Find contours of the segment
-#             contours, _ = cv2.findContours(label_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-#
-#             # Draw contours on the result image
-#             cv2.drawContours(result, contours, -1, rgb_color, 2)
-#
-#         # Convert numpy array back to QImage
-#         qimg = QImage(result.data, width, height, width * 3, QImage.Format_RGB888)
-#         pixmap = QPixmap.fromImage(qimg)
-#
-#         # Scale to fit in result label
-#         label_size = self.result_label.size()
-#         pixmap = pixmap.scaled(label_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-#
-#         self.result_label.setPixmap(pixmap)
-#
-#     def qimage_to_numpy(self, qimage):
-#         """Convert QImage to numpy array"""
-#         width = qimage.width()
-#         height = qimage.height()
-#
-#         # Convert QImage to a format we can work with
-#         if qimage.format() != QImage.Format_RGB888:
-#             qimage = qimage.convertToFormat(QImage.Format_RGB888)
-#
-#         # Use numpy to create an array from the underlying bytes
-#         bits = qimage.constBits()
-#         # Create a numpy array using the buffer protocol
-#         arr = np.asarray(bits).reshape(height, width, 3)
-#         return arr.copy()
-#
+                # Create a colored visualization of the segmentation
+                height, width = mask.shape
+                colored_mask = np.zeros((height, width, 3), dtype=np.uint8)
 
-# if __name__ == "__main__":
-#     app = QApplication(sys.argv)
-#     window = RegionGrowingApp()
-#     window.show()
-#     sys.exit(app.exec())
+                # Color each segment with a different color
+                unique_regions = np.unique(mask)
+                for i, region_id in enumerate(unique_regions):
+                    if region_id == 0:  # Skip background
+                        continue
+
+                    # Use a different color for each region
+                    color = np.array([
+                        (i * 50) % 255,  # R
+                        (i * 80 + 50) % 255,  # G
+                        (i * 110 + 100) % 255  # B
+                    ], dtype=np.uint8)
+
+                    # Apply color to this region
+                    colored_mask[mask == region_id] = color
+
+                # Convert colored NumPy array to QImage
+                bytes_per_line = colored_mask.shape[1] * 3
+                q_result = QImage(
+                    colored_mask.data.tobytes(),
+                    width,
+                    height,
+                    bytes_per_line,
+                    QImage.Format_RGB888
+                )
+
+                # Important: Create a deep copy to preserve the data
+                q_result = q_result.copy()
+
+                # Store and emit result
+                self.segmentation_result = q_result
+                self.segmentationCompleted.emit(q_result)
+                self.accept()
+
+        except Exception as e:
+            import traceback
+            print(f"Error in region growing: {e}")
+            traceback.print_exc()
