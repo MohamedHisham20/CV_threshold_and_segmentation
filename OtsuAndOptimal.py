@@ -73,7 +73,7 @@ class OtsuAndOptimal:
 
         return img
     
-    def local_otsu(self, window_size=64):
+    def local_otsu(self, window_size):
         gray_image = self.image
         h, w = gray_image.shape
         result = np.zeros_like(gray_image)
@@ -91,7 +91,7 @@ class OtsuAndOptimal:
         return result
 
     
-    def local_optimal(self, window_size=64):
+    def local_optimal(self, window_size):
         gray_image = self.image
         h, w = gray_image.shape
         result = np.zeros_like(gray_image)

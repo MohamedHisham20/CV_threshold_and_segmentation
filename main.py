@@ -39,7 +39,7 @@ class MainWindow(QMainWindow):
         self.mode_gp.addButton(self.local_check)
         self.mode_gp.addButton(self.global_check)
 
-        self.window_size = self.windowsize_spinbox.value()
+        self.window_size = 13
        
         self.input_label.setScaledContents(True)
         self.output_label.setScaledContents(True)
@@ -100,15 +100,17 @@ class MainWindow(QMainWindow):
         thresholding = OtsuAndOptimal(self.path)
 
         if self.otsu_check.isChecked():
+            self.window_size = self.windowsize_spinbox.value()
             result = thresholding.local_otsu(self.window_size)
             message = "Applied Local Otsu Thresholding"
         elif self.optimal_check.isChecked():
+            self.window_size = self.windowsize_spinbox.value()
             result = thresholding.local_optimal(self.window_size)
             message = "Applied Local Optimal Thresholding"
         else:
             return
 
-        result = cv2.GaussianBlur(result, (5, 5), 0)
+        # result = cv2.GaussianBlur(result, (5, 5), 0)
         # Display output image
         height, width = result.shape
         q_image = QImage(result.data, width, height, width, QImage.Format_Grayscale8)
