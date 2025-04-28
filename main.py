@@ -7,6 +7,9 @@ from PyQt5 import uic
 from OtsuAndOptimal import OtsuAndOptimal  
 import numpy as np
 
+from seed_widget import RegionGrowingApp
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -28,6 +31,8 @@ class MainWindow(QMainWindow):
         self.local_check = self.ui.findChild(QRadioButton, "local")
         self.global_check = self.ui.findChild(QRadioButton, "global")
         self.windowsize_spinbox = self.ui.findChild(QSpinBox, "windowsize")
+
+        self.regionGrowing_check = self.ui.findChild(QRadioButton, "regionGrowing")
         
         self.mode_gp = QButtonGroup(self)
         self.mode_gp.setExclusive(True)
@@ -43,6 +48,9 @@ class MainWindow(QMainWindow):
         self.load_btn.clicked.connect(self.load_image)
         self.otsu_check.toggled.connect(self.check_thresholding_mode)
         self.optimal_check.toggled.connect(self.check_thresholding_mode)
+
+        # Connect radio buttons
+        self.regionGrowing_check.toggled.connect(self.apply_region_growing)
 
         # Variables to hold images
         self.original_image = None  # colored image
@@ -128,6 +136,15 @@ class MainWindow(QMainWindow):
         q_image = QImage(result.data, width, height, width, QImage.Format_Grayscale8)
         self.output_label.setPixmap(QPixmap.fromImage(q_image))
         self.show_message(message)
+
+    def apply_region_growing(self):
+        self.region_grow_app = RegionGrowingApp()
+        self.region_grow_app.regionGrowingDone.connect(self.handle_region_growing_result)
+        self.region_grow_app.show()
+
+    def handle_region_growing_result(self, result_image):
+        self.output_label.setPixmap(QPixmap.fromImage(result_image))  # Save the result into your main
+        print("Segmentation completed and result stored!")
 
 
 if __name__ == "__main__":
