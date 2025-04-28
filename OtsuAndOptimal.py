@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-class GlobalThresholding:
+class OtsuAndOptimal:
     def __init__(self, image_path):
         # image must already be grayscale!
         self.image = self.read_image(image_path)
@@ -73,6 +73,42 @@ class GlobalThresholding:
 
         return img
     
+    def local_otsu(self, window_size=64):
+        gray_image = self.image
+        h, w = gray_image.shape
+        result = np.zeros_like(gray_image)
+
+        for i in range(0, h, window_size):
+            for j in range(0, w, window_size):
+                window = gray_image[i:i+window_size, j:j+window_size]
+
+                cv2.imwrite('temp_window.png', window)  # Save window temporarily
+                local_thresholder = OtsuAndOptimal('temp_window.png') 
+                local_result = local_thresholder.otsu_thresholding()
+
+                result[i:i+window_size, j:j+window_size] = local_result
+
+        return result
+
+    
+    def local_optimal(self, window_size=64):
+        gray_image = self.image
+        h, w = gray_image.shape
+        result = np.zeros_like(gray_image)
+
+        for i in range(0, h, window_size):
+            for j in range(0, w, window_size):
+                window = gray_image[i:i+window_size, j:j+window_size]
+
+                cv2.imwrite('temp_window.png', window)  # Save window temporarily
+                local_thresholder = OtsuAndOptimal('temp_window.png')  
+                local_result = local_thresholder.optimal_thresholding()
+
+                result[i:i+window_size, j:j+window_size] = local_result
+
+        return result
+
+    
     def test_thresholding(self):
         # Apply both methods
         optimal_result = self.optimal_thresholding()
@@ -99,6 +135,4 @@ class GlobalThresholding:
         plt.tight_layout()
         plt.show()
         
-# gt = GlobalThresholding("") ## add image path here
-# gt.test_thresholding()
     
