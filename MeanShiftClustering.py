@@ -1,8 +1,9 @@
+import cv2
 import numpy as np
 
 
 class MeanShiftClusterer:
-    def __init__(self, image, bandwidth=100, max_iter=300, tol=1e-3, with_spatial_coords=False):
+    def __init__(self, image, bandwidth=100, max_iter=300, tol=1e-3, with_spatial_coords=False, use_luv_space=True):
         self.bandwidth = bandwidth
         self.merge_threshold = bandwidth / 2
         self.max_iter = max_iter
@@ -12,11 +13,17 @@ class MeanShiftClusterer:
         self.labels_ = None
         self.features = None
         self.shuffled_features = None
+        self.use_luv_space = use_luv_space
         self.__initialize_features(with_spatial_coords)
 
     def __initialize_features(self, with_spatial_coords):
         h, w, c = self.image.shape
-        features = self.image.reshape(-1, c)
+        if self.use_luv_space:
+            luv_image = cv2.cvtColor(self.image, cv2.COLOR_RGB2LUV)
+            features = luv_image.reshape(-1, c)
+        else:
+            features = self.image.reshape(-1, c)
+
         if with_spatial_coords:
             x_coords, y_coords = np.meshgrid(np.arange(w), np.arange(h))
             spatial_features = np.dstack((x_coords, y_coords)).reshape(-1, 2)
@@ -43,7 +50,13 @@ class MeanShiftClusterer:
             raise ValueError("Labels have not been computed. Please call fit() first.")
         clustered_image = np.zeros_like(self.image)
         for i, center in enumerate(self.cluster_centers_):
-            clustered_image[self.labels_ == i] = center[:3]
+            if self.use_luv_space:
+                # transform center color back to rgb
+                luv_color = np.array([[center[:3]]], dtype=np.uint8)  # shape (1,1,3)
+                rgb_color = cv2.cvtColor(luv_color, cv2.COLOR_LUV2RGB)[0, 0]
+            else:
+                rgb_color = center[:3].astype(np.uint8)
+            clustered_image[self.labels_ == i] = rgb_color
         return clustered_image
 
     def cluster(self):
@@ -67,7 +80,7 @@ class MeanShiftClusterer:
                 continue
 
             centers.append(center)
-            last_addition = i
+            last_cluster_addition = i
             print(f"Iteration {i + 1}/{len(self.shuffled_features)}")
             print(f"Current center: {center}")
             print(f"Samples left: {np.sum(~visited)}")
