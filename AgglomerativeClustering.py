@@ -15,12 +15,14 @@ class Cluster:
         :param right_cluster:
         :param neighbors: list of 8-point neighboring clusters
         """
-        self.centroid = np.array(centroid, dtype=np.float64)  # Use float64 to avoid overflow
+        self.centroid = np.array(centroid, dtype=np.float64)
         self.left_cluster = left_cluster
         self.right_cluster = right_cluster
         self.neighbors = set(neighbors or [])
         self.merged = False
         self.num_points = 1 if left_cluster is None and right_cluster is None else 0
+
+        # Better handling of merged clusters
         if left_cluster is not None:
             self.num_points += left_cluster.num_points
             left_cluster.merged = True
@@ -30,6 +32,26 @@ class Cluster:
 
         self.id = Cluster.count
         Cluster.count += 1
+
+        # Store the original pixel if this is a leaf cluster
+        self.original_pixel = None
+        if left_cluster is None and right_cluster is None:
+            self.original_pixel = (int(centroid[0]), int(centroid[1]))
+
+    def get_pixels(self):
+        """
+        Get all pixels that belong to this cluster.
+        :return: list of pixel coordinates (x, y)
+        """
+        if self.original_pixel:  # Leaf node
+            return [self.original_pixel]
+
+        pixels = []
+        if self.left_cluster is not None:
+            pixels.extend(self.left_cluster.get_pixels())
+        if self.right_cluster is not None:
+            pixels.extend(self.right_cluster.get_pixels())
+        return pixels
 
     def merge(self, other):
         """
@@ -71,20 +93,6 @@ class Cluster:
     def __lt__(self, other):
         # prioritize larger clusters in the heap
         return self.num_points > other.num_points
-
-    def get_pixels(self):
-        """
-        Get the pixels in the cluster.
-        :return: list of pixels
-        """
-        pixels = []
-        if self.left_cluster is not None:
-            pixels += self.left_cluster.get_pixels()
-        if self.right_cluster is not None:
-            pixels += self.right_cluster.get_pixels()
-        if not pixels:
-            return [(int(self.centroid[0]), int(self.centroid[1]))]  # return the centroid coordinates as integers
-        return pixels
 
 
 class AgglomerativeClustering:
@@ -174,49 +182,83 @@ class AgglomerativeClustering:
 
 def agglomerate_clusters(image, num_clusters=5, color_weight=1.0, spatial_weight=1.0):
     """
-    Perform agglomerative clustering on an image.
-    :param image: input np image rgb  not bgr
+    Perform agglomerative clustering on an image with improved pixel mapping.
+    :param image: input np image rgb not bgr
     :param num_clusters: number of clusters
     :param color_weight: weight for color distance
     :param spatial_weight: weight for spatial distance
-    :return: list of clusters
+    :return: clustered image
     """
-    # Create a copy of the input image to avoid modifying the original
-    image_copy = image.copy()
+    # For performance reasons, resize very large images
+    height, width = image.shape[:2]
+    original_size = (width, height)
+    max_dimension = 100  # Much smaller for agglomerative which is very slow
+
+    # Scale down if necessary
+    scale_factor = 1.0
+    if max(height, width) > max_dimension:
+        scale_factor = max_dimension / max(height, width)
+        new_width = int(width * scale_factor)
+        new_height = int(height * scale_factor)
+        print(f"Resizing from {width}x{height} to {new_width}x{new_height} for processing")
+        image = cv2.resize(image, (new_width, new_height))
 
     # Convert to float64 to avoid overflows
-    image_copy = image_copy.astype(np.float64)
+    image = image.astype(np.float64)
 
-    print("Performing agglomerative clustering...")
-    clustering = AgglomerativeClustering(image_copy, color_weight, spatial_weight)
-    print("Clustering initialized")
+    # Initialize clustering
+    print("Initializing agglomerative clustering...")
+    clustering = AgglomerativeClustering(image, color_weight, spatial_weight)
+    print("Starting agglomeration process...")
     clusters = clustering.agglomerate_clustering(num_clusters)
     print(f"Clustering completed with {len(clusters)} clusters")
 
-    cluster_colors = [[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0], [0, 255, 255]]
+    # Define distinct colors for visualization
+    cluster_colors = [
+        [255, 0, 0],  # Red
+        [0, 255, 0],  # Green
+        [0, 0, 255],  # Blue
+        [255, 255, 0],  # Yellow
+        [0, 255, 255],  # Cyan
+        [255, 0, 255],  # Magenta
+        [128, 0, 0],  # Maroon
+        [0, 128, 0],  # Dark Green
+        [0, 0, 128],  # Navy
+        [128, 128, 0]  # Olive
+    ]
 
     # Add more colors if needed
     while len(cluster_colors) < len(clusters):
-        cluster_colors.append([np.random.randint(0, 256), np.random.randint(0, 256), np.random.randint(0, 256)])
+        cluster_colors.append([
+            np.random.randint(0, 256),
+            np.random.randint(0, 256),
+            np.random.randint(0, 256)
+        ])
 
-    # Create a new image to visualize the clusters
+    # Create a lookup dictionary to map pixels to clusters
+    pixel_to_cluster = {}
+    for i, cluster in enumerate(clusters):
+        pixels = cluster.get_pixels()
+        for px, py in pixels:
+            pixel_to_cluster[(int(px), int(py))] = i
+
+    # Create the clustered image
     height, width = image.shape[:2]
     clustered_image = np.zeros((height, width, 3), dtype=np.uint8)
 
+    # Fill the clustered image using the lookup dict
     print("Creating clustered image...")
-    for i, cluster in enumerate(clusters):
-        color = cluster_colors[i % len(cluster_colors)]
-        pixels = cluster.get_pixels()
-        for pixel in pixels:
-            # Ensure pixel coordinates are integers and within bounds
-            px, py = int(pixel[0]), int(pixel[1])
-            if 0 <= px < width and 0 <= py < height:
-                clustered_image[py, px] = color
+    for y in range(height):
+        for x in range(width):
+            cluster_idx = pixel_to_cluster.get((x, y), 0)  # Default to first cluster if not found
+            clustered_image[y, x] = cluster_colors[cluster_idx % len(cluster_colors)]
+
+    # Resize back to original dimensions if scaled down
+    if scale_factor < 1.0:
+        clustered_image = cv2.resize(clustered_image, original_size, interpolation=cv2.INTER_NEAREST)
 
     print(f"Clustered image created with shape: {clustered_image.shape}")
-
-    # Ensure the output is uint8 for proper QImage conversion
-    return clustered_image.astype(np.uint8)
+    return clustered_image
 
 
 def cv2_to_qimage_agglomerate(cv_img):
