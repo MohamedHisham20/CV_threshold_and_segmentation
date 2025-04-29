@@ -872,16 +872,16 @@ QSpinBox::up-arrow, QSpinBox::down-arrow {
 </string>
     </property>
     <property name="minimum">
-     <number>13</number>
+     <number>1</number>
     </property>
     <property name="maximum">
-     <number>513</number>
+     <number>50</number>
     </property>
     <property name="singleStep">
-     <number>13</number>
+     <number>1</number>
     </property>
     <property name="value">
-     <number>87</number>
+     <number>3</number>
     </property>
    </widget>
    <widget class="QLabel" name="label_23">

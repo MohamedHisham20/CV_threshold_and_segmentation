@@ -38,7 +38,7 @@ class MainWindow(QMainWindow):
         self.global_check = self.ui.findChild(QRadioButton, "global")
         self.windowsize_spinbox = self.ui.findChild(QSpinBox, "windowsize")
 
-        self.segment_button = self.ui.findChild(QPushButton, "Segment")
+        self.segment_button = self.ui.findChild(QPushButton, "segment_button")
 
         self.regionGrowing_check = self.ui.findChild(QRadioButton, "regionGrowing")
         self.kmeans_check = self.ui.findChild(QRadioButton, "kMeans")
@@ -70,6 +70,7 @@ class MainWindow(QMainWindow):
         self.load_btn.clicked.connect(self.load_image)
         self.otsu_check.toggled.connect(self.check_thresholding_mode)
         self.optimal_check.toggled.connect(self.check_thresholding_mode)
+        self.segment_button.clicked.connect(self.check_thresholding_mode)
 
         # Connect radio buttons
         self.regionGrowing_check.toggled.connect(self.apply_region_growing)
@@ -77,6 +78,11 @@ class MainWindow(QMainWindow):
 
         self.agglomerative_check.toggled.connect(self.apply_agglomerative)
         self.meanShift_check.toggled.connect(self.apply_meanShift)
+
+        self.k_number.setMinimum(1)
+        self.k_number.setMaximum(50)
+        self.k_number.setValue(3)
+        self.k_number.setSingleStep(1)
 
         self.iterations_slider.setMinimum(1)
         self.iterations_slider.setMaximum(100)
