@@ -13,6 +13,7 @@ import numpy as np
 
 from RegionGrowingSegmentation import RegionGrowingDialog, cv2_to_qimage
 from KMeanSegmentation import kmeans, kmeans_result_to_qimage
+from MeanShiftClustering import MeanShiftClusterer
 
 
 class MainWindow(QMainWindow):
@@ -41,6 +42,7 @@ class MainWindow(QMainWindow):
         self.kmeans_check = self.ui.findChild(QRadioButton, "kMeans")
 
         self.agglomerative_check = self.ui.findChild(QRadioButton, "agglomerative")
+        self.meanShift_check = self.ui.findChild(QRadioButton, "meanShift")
 
         self.iterations_slider = self.ui.findChild(QSlider, "iterationsHorizontalSlider")
         self.iterationsLabel = self.ui.findChild(QLabel, "iterationsLabel")
@@ -65,6 +67,7 @@ class MainWindow(QMainWindow):
         self.kmeans_check.toggled.connect(self.apply_kmeans)
 
         self.agglomerative_check.toggled.connect(self.apply_agglomerative)
+        self.meanShift_check.toggled.connect(self.apply_meanShift)
 
         self.iterations_slider.setMinimum(1)
         self.iterations_slider.setMaximum(100)
@@ -200,6 +203,28 @@ class MainWindow(QMainWindow):
             # Display the result image
             self.output_label.setPixmap(QPixmap.fromImage(q_image))
             self.show_message("K-means segmentation completed!")
+
+    def apply_meanShift(self):
+        if self.meanShift_check.isChecked():
+            if self.original_image is None:
+                self.show_message("Please load an image first")
+                return
+
+            bandwidth = 100
+            with_spatial_coords = False
+            clusterer = MeanShiftClusterer(self.original_image, bandwidth=bandwidth, with_spatial_coords=with_spatial_coords)
+            clusterer.cluster()
+
+            clustered_image = clusterer.get_clustered_image()
+            q_image = cv2_to_qimage(clustered_image)
+
+            if q_image.isNull():
+                self.show_message("Error: Generated QImage is null!")
+                return
+
+            # Display the result image
+            self.output_label.setPixmap(QPixmap.fromImage(q_image))
+            self.show_message("Mean Shift clustering completed!")
 
     def update_iterations_label(self):
         # Get the current value of the slider
