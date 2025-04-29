@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1698</width>
-    <height>850</height>
+    <width>1704</width>
+    <height>859</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -429,7 +429,7 @@ border:3px solid #D4D7D8;
     <property name="geometry">
      <rect>
       <x>880</x>
-      <y>630</y>
+      <y>730</y>
       <width>221</width>
       <height>41</height>
      </rect>
@@ -479,7 +479,7 @@ border:3px solid #D4D7D8;
     <property name="geometry">
      <rect>
       <x>880</x>
-      <y>730</y>
+      <y>630</y>
       <width>221</width>
       <height>41</height>
      </rect>
@@ -683,6 +683,302 @@ border-right:2px solid #D4D7D8;</string>
      <string/>
     </property>
    </widget>
+   <widget class="QPushButton" name="segment_button">
+    <property name="geometry">
+     <rect>
+      <x>1250</x>
+      <y>740</y>
+      <width>191</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">QPushButton{
+ background-color: #A29790;
+ border-radius: 7px;
+ color: #2B313B;
+ font-size: 13px;
+ font-weight: 700;
+border:3px solid #D4D7D8;
+ letter-spacing: .8px;
+ line-height: 20px;
+ text-align: center;
+ text-transform: uppercase;
+	}
+
+
+QPushButton:hover{
+	
+	background-color:#998D85;
+	}
+
+
+</string>
+    </property>
+    <property name="text">
+     <string>Segment</string>
+    </property>
+   </widget>
+   <widget class="QSlider" name="bandWidthHorizontalSlider">
+    <property name="geometry">
+     <rect>
+      <x>1260</x>
+      <y>640</y>
+      <width>201</width>
+      <height>22</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">QSlider{
+	background:#2B313B;
+}
+QSlider::groove:horizontal {
+    height: 8px;
+    background: #2B313B; /* Lighter shade of the dark color */
+    border-radius: 4px;
+}
+
+QSlider::handle:horizontal {
+    background:  #2B313B; /* Mid-tone between the dark and lighter colors */
+    border: 2px solid #D4D7D8; /* Matches groove */
+    width: 20px;
+    height: 20px;
+    margin: -6px 0;
+    border-radius: 10px;
+}
+
+QSlider::sub-page:horizontal {
+    background: #A29790; /* Matches handle */
+    border-radius: 4px;
+}
+
+QSlider::add-page:horizontal {
+    background: #2B313B; /* Matches groove */
+    border:2px solid #D4D7D8;
+    border-radius: 4px;
+}
+</string>
+    </property>
+    <property name="minimum">
+     <number>1</number>
+    </property>
+    <property name="maximum">
+     <number>10</number>
+    </property>
+    <property name="orientation">
+     <enum>Qt::Horizontal</enum>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_22">
+    <property name="geometry">
+     <rect>
+      <x>1130</x>
+      <y>630</y>
+      <width>111</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">background-color:#2B313B;
+color:#D4D7D8;
+font-size:15px;
+font-weight:bold;</string>
+    </property>
+    <property name="text">
+     <string>BandWidth</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="bandWidthLabel">
+    <property name="geometry">
+     <rect>
+      <x>1470</x>
+      <y>640</y>
+      <width>31</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">background-color:#2B313B;
+color:#D4D7D8;
+font-size:15px;
+font-weight:bold;</string>
+    </property>
+    <property name="text">
+     <string>0</string>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="use_spatial_feat_check">
+    <property name="geometry">
+     <rect>
+      <x>1520</x>
+      <y>620</y>
+      <width>111</width>
+      <height>51</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">background-color:#2B313B;
+color:#D4D7D8;
+font-size:15px;
+font-weight:bold;</string>
+    </property>
+    <property name="text">
+     <string>Use Spatial 
+Features</string>
+    </property>
+   </widget>
+   <widget class="QSpinBox" name="k_value">
+    <property name="geometry">
+     <rect>
+      <x>1570</x>
+      <y>580</y>
+      <width>71</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">QSpinBox {
+    background-color: #A29790;
+    border-radius: 7px;
+    color: #2B313B;
+    font-size: 13px;
+    font-weight: 700;
+    border: 3px solid #D4D7D8;
+    letter-spacing: .8px;
+    line-height: 20px;
+    text-align: center;
+    text-transform: uppercase;
+    padding: 0 10px; /* Add padding for the text inside the box */
+}
+
+QSpinBox::up-button, QSpinBox::down-button {
+    background-color: #D4D7D8;
+    border: none;
+    width: 15px;
+    height: 15px;
+}
+
+QSpinBox::up-button:hover, QSpinBox::down-button:hover {
+    background-color: #A29790;
+}
+
+QSpinBox::up-button:pressed, QSpinBox::down-button:pressed {
+    background-color: #2B313B;
+}
+
+QSpinBox::up-arrow, QSpinBox::down-arrow {
+    color: #000000; /* Change arrow color */
+}
+</string>
+    </property>
+    <property name="minimum">
+     <number>13</number>
+    </property>
+    <property name="maximum">
+     <number>513</number>
+    </property>
+    <property name="singleStep">
+     <number>13</number>
+    </property>
+    <property name="value">
+     <number>87</number>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_23">
+    <property name="geometry">
+     <rect>
+      <x>1530</x>
+      <y>580</y>
+      <width>31</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">background-color:#2B313B;
+color:#D4D7D8;
+font-size:15px;
+font-weight:bold;</string>
+    </property>
+    <property name="text">
+     <string>K</string>
+    </property>
+   </widget>
+   <widget class="QSpinBox" name="num_clusters">
+    <property name="geometry">
+     <rect>
+      <x>1260</x>
+      <y>680</y>
+      <width>71</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">QSpinBox {
+    background-color: #A29790;
+    border-radius: 7px;
+    color: #2B313B;
+    font-size: 13px;
+    font-weight: 700;
+    border: 3px solid #D4D7D8;
+    letter-spacing: .8px;
+    line-height: 20px;
+    text-align: center;
+    text-transform: uppercase;
+    padding: 0 10px; /* Add padding for the text inside the box */
+}
+
+QSpinBox::up-button, QSpinBox::down-button {
+    background-color: #D4D7D8;
+    border: none;
+    width: 15px;
+    height: 15px;
+}
+
+QSpinBox::up-button:hover, QSpinBox::down-button:hover {
+    background-color: #A29790;
+}
+
+QSpinBox::up-button:pressed, QSpinBox::down-button:pressed {
+    background-color: #2B313B;
+}
+
+QSpinBox::up-arrow, QSpinBox::down-arrow {
+    color: #000000; /* Change arrow color */
+}
+</string>
+    </property>
+    <property name="minimum">
+     <number>3</number>
+    </property>
+    <property name="maximum">
+     <number>10</number>
+    </property>
+    <property name="singleStep">
+     <number>1</number>
+    </property>
+    <property name="value">
+     <number>3</number>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_24">
+    <property name="geometry">
+     <rect>
+      <x>1130</x>
+      <y>680</y>
+      <width>101</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">background-color:#2B313B;
+color:#D4D7D8;
+font-size:15px;
+font-weight:bold;</string>
+    </property>
+    <property name="text">
+     <string>No. Clusters</string>
+    </property>
+   </widget>
    <zorder>label</zorder>
    <zorder>label_2</zorder>
    <zorder>label_3</zorder>
@@ -711,6 +1007,15 @@ border-right:2px solid #D4D7D8;</string>
    <zorder>label_17</zorder>
    <zorder>global</zorder>
    <zorder>local</zorder>
+   <zorder>segment_button</zorder>
+   <zorder>bandWidthHorizontalSlider</zorder>
+   <zorder>label_22</zorder>
+   <zorder>bandWidthLabel</zorder>
+   <zorder>use_spatial_feat_check</zorder>
+   <zorder>k_value</zorder>
+   <zorder>label_23</zorder>
+   <zorder>num_clusters</zorder>
+   <zorder>label_24</zorder>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
  </widget>

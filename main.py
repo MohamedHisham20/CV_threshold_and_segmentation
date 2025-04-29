@@ -1,6 +1,6 @@
 ## main.py
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton, QLabel, QScrollArea, \
-    QFileDialog, QRadioButton, QButtonGroup, QMessageBox, QSpinBox, QSlider
+    QFileDialog, QRadioButton, QButtonGroup, QMessageBox, QSpinBox, QSlider, QCheckBox
 from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtCore import Qt
 import cv2
@@ -38,11 +38,20 @@ class MainWindow(QMainWindow):
         self.global_check = self.ui.findChild(QRadioButton, "global")
         self.windowsize_spinbox = self.ui.findChild(QSpinBox, "windowsize")
 
+        self.segment_button = self.ui.findChild(QPushButton, "Segment")
+
         self.regionGrowing_check = self.ui.findChild(QRadioButton, "regionGrowing")
         self.kmeans_check = self.ui.findChild(QRadioButton, "kMeans")
 
+        self.k_number = self.ui.findChild(QSpinBox, "k_value")
+
         self.agglomerative_check = self.ui.findChild(QRadioButton, "agglomerative")
         self.meanShift_check = self.ui.findChild(QRadioButton, "meanShift")
+
+        self.use_spatial_features = self.ui.findChild(QCheckBox, "use_spatial_feat_check")
+
+        self.band_width_slider = self.ui.findChild(QSlider, "bandWidthHorizontalSlider")
+        self.band_width_label = self.ui.findChild(QLabel, "bandWidthLabel")
 
         self.iterations_slider = self.ui.findChild(QSlider, "iterationsHorizontalSlider")
         self.iterationsLabel = self.ui.findChild(QLabel, "iterationsLabel")
@@ -73,6 +82,11 @@ class MainWindow(QMainWindow):
         self.iterations_slider.setMaximum(100)
         self.iterations_slider.setValue(10)
         self.iterations_slider.valueChanged.connect(self.update_iterations_label)
+
+        self.band_width_slider.setMinimum(50)
+        self.band_width_slider.setMaximum(150)
+        self.band_width_slider.setValue(100)
+        self.band_width_slider.valueChanged.connect(self.update_bandwidth_label)
 
         # Variables to hold images
         self.original_image = None  # colored Q image
@@ -197,7 +211,8 @@ class MainWindow(QMainWindow):
                 self.show_message("Please load an image first")
                 return
 
-            result_image = kmeans(self.original_image,k=3, max_iters=self.iterations_slider.value())
+            k_value = self.k_number.value()
+            result_image = kmeans(self.original_image,k=k_value, max_iters=self.iterations_slider.value())
             # Convert the result image to QImage
             q_image = kmeans_result_to_qimage(result_image)
             # Display the result image
@@ -210,8 +225,8 @@ class MainWindow(QMainWindow):
                 self.show_message("Please load an image first")
                 return
 
-            bandwidth = 100
-            with_spatial_coords = False
+            bandwidth = self.band_width_slider.value()
+            with_spatial_coords = self.use_spatial_features.isChecked()
             clusterer = MeanShiftClusterer(self.original_image, bandwidth=bandwidth, with_spatial_coords=with_spatial_coords)
             clusterer.cluster()
 
@@ -225,12 +240,6 @@ class MainWindow(QMainWindow):
             # Display the result image
             self.output_label.setPixmap(QPixmap.fromImage(q_image))
             self.show_message("Mean Shift clustering completed!")
-
-    def update_iterations_label(self):
-        # Get the current value of the slider
-        iterations = self.iterations_slider.value()
-        # Update the label or any other UI element to show the current value
-        self.ui.iterationsLabel.setText(f"{iterations}")
 
     def apply_agglomerative(self):
         if self.agglomerative_check.isChecked():
@@ -278,6 +287,19 @@ class MainWindow(QMainWindow):
                 import traceback
                 traceback.print_exc()
                 self.show_message(f"Error in agglomerative clustering: {str(e)}")
+
+
+    def update_iterations_label(self):
+        # Get the current value of the slider
+        iterations = self.iterations_slider.value()
+        # Update the label or any other UI element to show the current value
+        self.ui.iterationsLabel.setText(f"{iterations}")
+
+    def update_bandwidth_label(self):
+        # Get the current value of the slider
+        bandwidth = self.band_width_slider.value()
+        # Update the label or any other UI element to show the current value
+        self.ui.bandWidthLabel.setText(f"{bandwidth}")
 
 
 if __name__ == "__main__":
