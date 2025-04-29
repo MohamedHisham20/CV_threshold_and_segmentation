@@ -1,5 +1,7 @@
 import numpy as np
 import heapq
+import cv2
+from PyQt5.QtGui import QImage
 
 
 class Cluster:
@@ -13,7 +15,7 @@ class Cluster:
         :param right_cluster:
         :param neighbors: list of 8-point neighboring clusters
         """
-        self.centroid = centroid
+        self.centroid = np.array(centroid, dtype=np.float64)  # Use float64 to avoid overflow
         self.left_cluster = left_cluster
         self.right_cluster = right_cluster
         self.neighbors = set(neighbors or [])
@@ -36,11 +38,16 @@ class Cluster:
         :return: new cluster
         """
         new_centroid = (
-            (self.centroid[0] * self.num_points + other.centroid[0] * other.num_points) / (self.num_points + other.num_points),
-            (self.centroid[1] * self.num_points + other.centroid[1] * other.num_points) / (self.num_points + other.num_points),
-            (self.centroid[2] * self.num_points + other.centroid[2] * other.num_points) / (self.num_points + other.num_points),
-            (self.centroid[3] * self.num_points + other.centroid[3] * other.num_points) / (self.num_points + other.num_points),
-            (self.centroid[4] * self.num_points + other.centroid[4] * other.num_points) / (self.num_points + other.num_points),
+            (self.centroid[0] * self.num_points + other.centroid[0] * other.num_points) / (
+                        self.num_points + other.num_points),
+            (self.centroid[1] * self.num_points + other.centroid[1] * other.num_points) / (
+                        self.num_points + other.num_points),
+            (self.centroid[2] * self.num_points + other.centroid[2] * other.num_points) / (
+                        self.num_points + other.num_points),
+            (self.centroid[3] * self.num_points + other.centroid[3] * other.num_points) / (
+                        self.num_points + other.num_points),
+            (self.centroid[4] * self.num_points + other.centroid[4] * other.num_points) / (
+                        self.num_points + other.num_points),
         )
         new_neighbors = set(self.neighbors).union(other.neighbors)
         new_neighbors.discard(self)
@@ -55,8 +62,10 @@ class Cluster:
         :param other: other cluster to calculate distance to
         :return: distance
         """
-        spatial_distance = np.sqrt((self.centroid[0] - other.centroid[0]) ** 2 + (self.centroid[1] - other.centroid[1]) ** 2)
-        color_distance = np.sqrt((self.centroid[2] - other.centroid[2]) ** 2 + (self.centroid[3] - other.centroid[3]) ** 2 + (self.centroid[4] - other.centroid[4]) ** 2)
+        # Use numpy's safe distance calculation to avoid overflow
+        spatial_distance = np.sqrt(np.sum(np.square(self.centroid[:2] - other.centroid[:2])))
+        color_distance = np.sqrt(np.sum(np.square(self.centroid[2:] - other.centroid[2:])))
+
         return color_weight * color_distance + spatial_weight * spatial_distance
 
     def __lt__(self, other):
@@ -74,7 +83,7 @@ class Cluster:
         if self.right_cluster is not None:
             pixels += self.right_cluster.get_pixels()
         if not pixels:
-            return [self.centroid[0:2]]  # return the centroid coordinates
+            return [(int(self.centroid[0]), int(self.centroid[1]))]  # return the centroid coordinates as integers
         return pixels
 
 
@@ -87,13 +96,17 @@ class AgglomerativeClustering:
         :param spatial_weight: weight for spatial distance
         """
         self.image = image
+        # Ensure image is float to avoid overflow
+        if self.image.dtype != np.float64:
+            self.image = self.image.astype(np.float64)
+
         self.color_weight = color_weight
         self.spatial_weight = spatial_weight
         self.clusters = []
         self.heap = []
         self.__initialize_clusters()
 
-    def agglomerative_clustering(self, num_clusters):
+    def agglomerate_clustering(self, num_clusters):
         num_iterations = 0
         while len(self.clusters) > num_clusters and self.heap:
             _, cluster1, cluster2 = heapq.heappop(self.heap)
@@ -159,9 +172,71 @@ class AgglomerativeClustering:
         heapq.heapify(self.heap)
 
 
+def agglomerate_clusters(image, num_clusters=5, color_weight=1.0, spatial_weight=1.0):
+    """
+    Perform agglomerative clustering on an image.
+    :param image: input np image rgb  not bgr
+    :param num_clusters: number of clusters
+    :param color_weight: weight for color distance
+    :param spatial_weight: weight for spatial distance
+    :return: list of clusters
+    """
+    # Create a copy of the input image to avoid modifying the original
+    image_copy = image.copy()
+
+    # Convert to float64 to avoid overflows
+    image_copy = image_copy.astype(np.float64)
+
+    print("Performing agglomerative clustering...")
+    clustering = AgglomerativeClustering(image_copy, color_weight, spatial_weight)
+    print("Clustering initialized")
+    clusters = clustering.agglomerate_clustering(num_clusters)
+    print(f"Clustering completed with {len(clusters)} clusters")
+
+    cluster_colors = [[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0], [0, 255, 255]]
+
+    # Add more colors if needed
+    while len(cluster_colors) < len(clusters):
+        cluster_colors.append([np.random.randint(0, 256), np.random.randint(0, 256), np.random.randint(0, 256)])
+
+    # Create a new image to visualize the clusters
+    height, width = image.shape[:2]
+    clustered_image = np.zeros((height, width, 3), dtype=np.uint8)
+
+    print("Creating clustered image...")
+    for i, cluster in enumerate(clusters):
+        color = cluster_colors[i % len(cluster_colors)]
+        pixels = cluster.get_pixels()
+        for pixel in pixels:
+            # Ensure pixel coordinates are integers and within bounds
+            px, py = int(pixel[0]), int(pixel[1])
+            if 0 <= px < width and 0 <= py < height:
+                clustered_image[py, px] = color
+
+    print(f"Clustered image created with shape: {clustered_image.shape}")
+
+    # Ensure the output is uint8 for proper QImage conversion
+    return clustered_image.astype(np.uint8)
+
+
+def cv2_to_qimage_agglomerate(cv_img):
+    """
+    Convert an OpenCV image to QImage with proper handling of color format
+    """
+    height, width, channel = cv_img.shape
+    bytes_per_line = 3 * width
+
+    # Ensure the image is in RGB format for QImage (not BGR)
+    if len(cv_img.shape) == 3:  # Color image
+        # OpenCV stores images in BGR order, while QImage expects RGB
+        cv_img_rgb = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB) if channel == 3 else cv_img
+        return QImage(cv_img_rgb.data, width, height, bytes_per_line, QImage.Format_RGB888)
+    else:  # Grayscale image
+        return QImage(cv_img.data, width, height, width, QImage.Format_Grayscale8)
+
+
 if __name__ == "__main__":
     # Example usage
-
     import cv2
     import matplotlib.pyplot as plt
 
@@ -170,17 +245,7 @@ if __name__ == "__main__":
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
     # Perform agglomerative clustering
-    clustering = AgglomerativeClustering(image, color_weight=1.0, spatial_weight=1.0)
-    clusters = clustering.agglomerative_clustering(num_clusters=5)
-
-    cluster_colors = [[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0], [0, 255, 255]]
-
-    # Create a new image to visualize the clusters
-    clustered_image = np.zeros_like(image)
-    for cluster, color in zip(clusters, cluster_colors):
-        pixels = cluster.get_pixels()
-        for pixel in pixels:
-            clustered_image[int(pixel[1]), int(pixel[0])] = color
+    clustered_image = agglomerate_clusters(image, num_clusters=5, color_weight=1.0, spatial_weight=1.0)
 
     # Display the original and clustered images
     plt.subplot(1, 2, 1)

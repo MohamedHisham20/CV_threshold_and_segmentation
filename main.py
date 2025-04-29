@@ -6,10 +6,13 @@ from PyQt5.QtCore import Qt
 import cv2
 import sys
 from PyQt5 import uic
+
+from AgglomerativeClustering import agglomerate_clusters, cv2_to_qimage_agglomerate
 from OtsuAndOptimal import OtsuAndOptimal  
 import numpy as np
 
-from seed_widget import RegionGrowingDialog, kmeans, cv2_to_qimage, kmeans_result_to_qimage
+from RegionGrowingSegmentation import RegionGrowingDialog, cv2_to_qimage
+from KMeanSegmentation import kmeans, kmeans_result_to_qimage
 
 
 class MainWindow(QMainWindow):
@@ -37,6 +40,8 @@ class MainWindow(QMainWindow):
         self.regionGrowing_check = self.ui.findChild(QRadioButton, "regionGrowing")
         self.kmeans_check = self.ui.findChild(QRadioButton, "kMeans")
 
+        self.agglomerative_check = self.ui.findChild(QRadioButton, "agglomerative")
+
         self.iterations_slider = self.ui.findChild(QSlider, "iterationsHorizontalSlider")
         self.iterationsLabel = self.ui.findChild(QLabel, "iterationsLabel")
         
@@ -59,14 +64,17 @@ class MainWindow(QMainWindow):
         self.regionGrowing_check.toggled.connect(self.apply_region_growing)
         self.kmeans_check.toggled.connect(self.apply_kmeans)
 
+        self.agglomerative_check.toggled.connect(self.apply_agglomerative)
+
         self.iterations_slider.setMinimum(1)
         self.iterations_slider.setMaximum(100)
         self.iterations_slider.setValue(10)
         self.iterations_slider.valueChanged.connect(self.update_iterations_label)
 
         # Variables to hold images
-        self.original_image = None  # colored image
+        self.original_image = None  # colored Q image
         self.gray_image = None      # grayscale image
+        self.rgb_image = None       # colored np image for displaying
 
     def show_message(self, message):
         msg = QMessageBox()
@@ -88,10 +96,10 @@ class MainWindow(QMainWindow):
             self.gray_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2GRAY)
 
             # Show input image
-            rgb_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
-            height, width, channel = rgb_image.shape
+            self.rgb_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
+            height, width, channel = self.rgb_image.shape
             bytes_per_line = 3 * width
-            q_image = QImage(rgb_image.data, width, height, bytes_per_line, QImage.Format_RGB888)
+            q_image = QImage(self.rgb_image.data, width, height, bytes_per_line, QImage.Format_RGB888)
             self.input_label.setPixmap(QPixmap.fromImage(q_image))
 
             # Clear output image
@@ -198,6 +206,66 @@ class MainWindow(QMainWindow):
         iterations = self.iterations_slider.value()
         # Update the label or any other UI element to show the current value
         self.ui.iterationsLabel.setText(f"{iterations}")
+
+    def apply_agglomerative(self):
+        if self.agglomerative_check.isChecked():
+            self.regionGrowing_check.setChecked(False)
+            self.kmeans_check.setChecked(False)
+
+            # Check if an image is loaded
+            if self.original_image is None:
+                self.show_message("Please load an image first")
+                return
+
+            # Apply Agglomerative Clustering
+            num_clusters = 5
+            color_weight = 1.0
+            spatial_weight = 1.0
+
+            # Ensure rgb_image is in the correct format
+            if self.rgb_image is None:
+                # Convert from BGR to RGB if needed
+                self.rgb_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
+
+            # Make a copy to avoid modifying the original
+            image_to_process = self.rgb_image.copy()
+
+            # Check if we need to resize for performance (agglomerative can be slow on large images)
+            max_dimension = 300  # Limit for reasonable processing time
+            height, width = image_to_process.shape[:2]
+            if max(height, width) > max_dimension:
+                scale = max_dimension / max(height, width)
+                new_width = int(width * scale)
+                new_height = int(height * scale)
+                image_to_process = cv2.resize(image_to_process, (new_width, new_height))
+                self.show_message(f"Image resized to {new_width}x{new_height} for faster processing.")
+
+            # Apply the clustering
+            try:
+                clustered_image = agglomerate_clusters(image_to_process, num_clusters, color_weight, spatial_weight)
+
+                # Debug information
+                print(f"Original image shape: {self.rgb_image.shape}")
+                print(f"Clustered image shape: {clustered_image.shape}")
+                print(f"Clustered image dtype: {clustered_image.dtype}")
+
+                # Convert the result image to QImage
+                q_image = cv2_to_qimage_agglomerate(clustered_image)
+
+                # Check if QImage is valid
+                if q_image.isNull():
+                    self.show_message("Error: Generated QImage is null!")
+                    return
+
+                # Display the result image
+                self.output_label.setPixmap(QPixmap.fromImage(q_image))
+                self.show_message("Agglomerative clustering completed!")
+            except Exception as e:
+                import traceback
+                print(f"Error in agglomerative clustering: {e}")
+                traceback.print_exc()
+                self.show_message(f"Error in agglomerative clustering: {str(e)}")
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
