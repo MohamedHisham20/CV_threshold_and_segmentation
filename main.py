@@ -294,7 +294,8 @@ class MainWindow(QMainWindow):
 
             bandwidth = self.band_width_slider.value()
             with_spatial_coords = self.use_spatial_features.isChecked()
-            clusterer = MeanShiftClusterer(self.original_image, bandwidth=bandwidth, with_spatial_coords=with_spatial_coords)
+            use_luv_space = False
+            clusterer = MeanShiftClusterer(self.original_image, bandwidth=bandwidth, with_spatial_coords=with_spatial_coords, use_luv_space=use_luv_space)
             clusterer.cluster()
 
             clustered_image = clusterer.get_clustered_image()
