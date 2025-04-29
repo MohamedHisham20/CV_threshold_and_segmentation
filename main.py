@@ -217,52 +217,40 @@ class MainWindow(QMainWindow):
                 self.show_message("Please load an image first")
                 return
 
-            # Apply Agglomerative Clustering
-            num_clusters = 5
-            color_weight = 1.0
-            spatial_weight = 1.0
-
-            # Ensure rgb_image is in the correct format
-            if self.rgb_image is None:
-                # Convert from BGR to RGB if needed
-                self.rgb_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
-
-            # Make a copy to avoid modifying the original
-            image_to_process = self.rgb_image.copy()
-
-            # Check if we need to resize for performance (agglomerative can be slow on large images)
-            max_dimension = 300  # Limit for reasonable processing time
-            height, width = image_to_process.shape[:2]
-            if max(height, width) > max_dimension:
-                scale = max_dimension / max(height, width)
-                new_width = int(width * scale)
-                new_height = int(height * scale)
-                image_to_process = cv2.resize(image_to_process, (new_width, new_height))
-                self.show_message(f"Image resized to {new_width}x{new_height} for faster processing.")
-
-            # Apply the clustering
             try:
-                clustered_image = agglomerate_clusters(image_to_process, num_clusters, color_weight, spatial_weight)
+                # Get image in correct format
+                image_to_process = self.original_image.copy()
+                if len(image_to_process.shape) == 2:  # If grayscale, convert to RGB
+                    image_to_process = cv2.cvtColor(image_to_process, cv2.COLOR_GRAY2RGB)
+                elif image_to_process.shape[2] == 3:  # If BGR, convert to RGB
+                    image_to_process = cv2.cvtColor(image_to_process, cv2.COLOR_BGR2RGB)
 
-                # Debug information
-                print(f"Original image shape: {self.rgb_image.shape}")
-                print(f"Clustered image shape: {clustered_image.shape}")
-                print(f"Clustered image dtype: {clustered_image.dtype}")
+                # Apply agglomerative clustering with progress updates
+                self.show_message("Starting agglomerative clustering. This may take a while...")
+                num_clusters = 5  # You might want to make this configurable with a slider
 
-                # Convert the result image to QImage
-                q_image = cv2_to_qimage_agglomerate(clustered_image)
+                # Apply clustering with optimized parameters
+                clustered_image = agglomerate_clusters(
+                    image_to_process,
+                    num_clusters=num_clusters,
+                    color_weight=2.0,  # Give more weight to color differences
+                    spatial_weight=1.0
+                )
 
-                # Check if QImage is valid
-                if q_image.isNull():
-                    self.show_message("Error: Generated QImage is null!")
-                    return
+                # Convert the output back to BGR for cv2 display if needed
+                output_bgr = cv2.cvtColor(clustered_image, cv2.COLOR_RGB2BGR)
 
-                # Display the result image
-                self.output_label.setPixmap(QPixmap.fromImage(q_image))
+                # Convert to QImage
+                height, width, channel = output_bgr.shape
+                bytesPerLine = 3 * width
+                qImg = QImage(output_bgr.data, width, height, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
+
+                # Display the result
+                self.output_label.setPixmap(QPixmap.fromImage(qImg))
                 self.show_message("Agglomerative clustering completed!")
+
             except Exception as e:
                 import traceback
-                print(f"Error in agglomerative clustering: {e}")
                 traceback.print_exc()
                 self.show_message(f"Error in agglomerative clustering: {str(e)}")
 
