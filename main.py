@@ -70,29 +70,25 @@ class MainWindow(QMainWindow):
         self.load_btn.clicked.connect(self.load_image)
         self.otsu_check.toggled.connect(self.check_thresholding_mode)
         self.optimal_check.toggled.connect(self.check_thresholding_mode)
-        self.segment_button.clicked.connect(self.check_thresholding_mode)
+        self.segment_button.clicked.connect(self.check_segmentation_mode)
 
         # Connect radio buttons
         self.regionGrowing_check.toggled.connect(self.apply_region_growing)
-        self.kmeans_check.toggled.connect(self.apply_kmeans)
+        # self.kmeans_check.toggled.connect(self.apply_kmeans)
 
-        self.agglomerative_check.toggled.connect(self.apply_agglomerative)
-        self.meanShift_check.toggled.connect(self.apply_meanShift)
+        # self.agglomerative_check.toggled.connect(self.apply_agglomerative)
+        # self.meanShift_check.toggled.connect(self.apply_meanShift)
 
-        self.k_number.setMinimum(1)
-        self.k_number.setMaximum(50)
-        self.k_number.setValue(3)
-        self.k_number.setSingleStep(1)
 
         self.iterations_slider.setMinimum(1)
         self.iterations_slider.setMaximum(100)
         self.iterations_slider.setValue(10)
         self.iterations_slider.valueChanged.connect(self.update_iterations_label)
 
+        self.band_width_slider.valueChanged.connect(self.update_bandwidth_label)
         self.band_width_slider.setMinimum(50)
         self.band_width_slider.setMaximum(150)
         self.band_width_slider.setValue(100)
-        self.band_width_slider.valueChanged.connect(self.update_bandwidth_label)
 
         # Variables to hold images
         self.original_image = None  # colored Q image
@@ -182,6 +178,22 @@ class MainWindow(QMainWindow):
         self.output_label.setPixmap(QPixmap.fromImage(q_image))
         self.show_message(message)
 
+    def check_segmentation_mode(self):
+        if self.regionGrowing_check.isChecked():
+            self.kmeans_check.setChecked(False)
+            self.agglomerative_check.setChecked(False)
+            self.meanShift_check.setChecked(False)
+            return self.apply_region_growing()
+        elif self.kmeans_check.isChecked():
+            self.regionGrowing_check.setChecked(False)
+            return self.apply_kmeans()
+        elif self.agglomerative_check.isChecked():
+            self.regionGrowing_check.setChecked(False)
+            return self.apply_agglomerative()
+        elif self.meanShift_check.isChecked():
+            self.regionGrowing_check.setChecked(False)
+            return self.apply_meanShift()
+
     def apply_region_growing(self):
         if self.regionGrowing_check.isChecked():
             self.kmeans_check.setChecked(False)
@@ -218,7 +230,9 @@ class MainWindow(QMainWindow):
                 return
 
             k_value = self.k_number.value()
-            result_image = kmeans(self.original_image,k=k_value, max_iters=self.iterations_slider.value())
+            rgb_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
+
+            result_image = kmeans(rgb_image,k=k_value, max_iters=self.iterations_slider.value())
             # Convert the result image to QImage
             q_image = kmeans_result_to_qimage(result_image)
             # Display the result image
@@ -237,6 +251,9 @@ class MainWindow(QMainWindow):
             clusterer.cluster()
 
             clustered_image = clusterer.get_clustered_image()
+            # import matplotlib.pyplot as plt
+            # plt.imshow(clustered_image)
+            # plt.show()
             q_image = cv2_to_qimage(clustered_image)
 
             if q_image.isNull():
