@@ -7,7 +7,7 @@ import cv2
 import sys
 from PyQt5 import uic
 
-from AgglomerativeClustering import agglomerate_clusters, cv2_to_qimage_agglomerate
+from AgglomerativeClustering import AgglomerativeClustering
 from OtsuAndOptimal import OtsuAndOptimal  
 import numpy as np
 
@@ -252,15 +252,18 @@ class MainWindow(QMainWindow):
 
                 # Apply agglomerative clustering with progress updates
                 self.show_message("Starting agglomerative clustering. This may take a while...")
-                num_clusters = 5  # You might want to make this configurable with a slider
+                num_clusters = 3
 
                 # Apply clustering with optimized parameters
-                clustered_image = agglomerate_clusters(
-                    image_to_process,
-                    num_clusters=num_clusters,
-                    color_weight=2.0,  # Give more weight to color differences
-                    spatial_weight=1.0
-                )
+                clusterer = AgglomerativeClustering(image_to_process, 1, 0)
+                clusters = clusterer.agglomerate_clustering(num_clusters=num_clusters)
+
+                clustered_image = np.zeros(image_to_process.shape, dtype=np.uint8)
+                for cluster in clusters:
+                    color = cluster.centroid[2:]
+                    pixels = cluster.get_pixels()
+                    for x, y in pixels:
+                        clustered_image[y][x] = color
 
                 # Convert the output back to BGR for cv2 display if needed
                 output_bgr = cv2.cvtColor(clustered_image, cv2.COLOR_RGB2BGR)
