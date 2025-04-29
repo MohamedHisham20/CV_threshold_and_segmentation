@@ -14,6 +14,7 @@ import numpy as np
 from RegionGrowingSegmentation import RegionGrowingDialog, cv2_to_qimage
 from KMeanSegmentation import kmeans, kmeans_result_to_qimage
 from MeanShiftClustering import MeanShiftClusterer
+from spectralThresholding import ThresholdingProcessor
 
 
 class MainWindow(QMainWindow):
@@ -37,6 +38,8 @@ class MainWindow(QMainWindow):
         self.local_check = self.ui.findChild(QRadioButton, "local")
         self.global_check = self.ui.findChild(QRadioButton, "global")
         self.windowsize_spinbox = self.ui.findChild(QSpinBox, "windowsize")
+        self.spectralone_check = self.ui.findChild(QRadioButton, "spectralone")
+        self.spectraltwo_check = self.ui.findChild(QRadioButton, "spectraltwo")
 
         self.segment_button = self.ui.findChild(QPushButton, "segment_button")
 
@@ -55,7 +58,10 @@ class MainWindow(QMainWindow):
 
         self.iterations_slider = self.ui.findChild(QSlider, "iterationsHorizontalSlider")
         self.iterationsLabel = self.ui.findChild(QLabel, "iterationsLabel")
-        
+
+        self.spectralone_check.toggled.connect(self.apply_spectral_threshold)
+        self.spectraltwo_check.toggled.connect(self.apply_spectral_threshold)
+
         self.mode_gp = QButtonGroup(self)
         self.mode_gp.setExclusive(True)
         self.mode_gp.addButton(self.local_check)
@@ -93,7 +99,9 @@ class MainWindow(QMainWindow):
         # Variables to hold images
         self.original_image = None  # colored Q image
         self.gray_image = None      # grayscale image
-        self.rgb_image = None       # colored np image for displaying
+        self.rgb_image = None
+
+        self.spectral_processor = ThresholdingProcessor()# colored np image for displaying
 
     def show_message(self, message):
         msg = QMessageBox()
@@ -112,7 +120,12 @@ class MainWindow(QMainWindow):
                 print("Error loading image")
                 return
 
-            self.gray_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2GRAY)
+            if len(self.original_image.shape) == 3:
+                # Convert to grayscale if the image is colored
+                self.gray_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2GRAY)
+            else:
+                # If the image is already grayscale, just assign it
+                self.gray_image = self.original_image
 
             # Show input image
             self.rgb_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
@@ -156,6 +169,37 @@ class MainWindow(QMainWindow):
         self.output_label.setPixmap(QPixmap.fromImage(q_image))
         self.show_message(message)
 
+    def apply_spectral_threshold(self):
+        """
+        Apply spectral thresholding based on selected mode
+        and emit the result through the signal
+        """
+        if self.original_image is None:
+            self.show_message("Please load an image first")
+            return
+
+        # use the grayscale if needed
+        image = self.gray_image
+
+
+        # Apply selected mode
+        if self.spectralone_check.isChecked():
+            result = self.spectral_processor.spectral_first_mode(image=image)
+        elif self.spectraltwo_check.isChecked():
+            result = self.spectral_processor.spectral_second_mode(image)
+        else:
+            self.show_message("select 1 or 2")
+            return
+
+        # Convert result to QImage and emit
+        height, width = result.shape
+        bytes_per_line = width
+        # We need to copy the data because the numpy array may be temporary
+        result_bytes = result.tobytes()
+        qimage = QImage(result_bytes, width, height, bytes_per_line, QImage.Format_Grayscale8)
+        qimage = qimage.copy()  # Make a deep copy to ensure the data persists
+        self.output_label.setPixmap(QPixmap.fromImage(qimage))
+        self.show_message("Spectral Thresholding applied!")
 
     def apply_global(self):
         if self.gray_image is None:
