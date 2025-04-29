@@ -6,7 +6,7 @@ import sys
 import numpy as np
 from PyQt5.QtWidgets import (QMainWindow, QApplication, QWidget,
                              QVBoxLayout, QHBoxLayout, QLabel,
-                             QPushButton, QComboBox, QFileDialog, QSlider, QDialog)
+                             QPushButton, QComboBox, QFileDialog, QSlider, QDialog, QMessageBox)
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import Qt
 
@@ -251,32 +251,25 @@ class SeedPixelWidget(QWidget):
         # Top controls
         controls = QHBoxLayout()
 
-        # Load image button
-        self.load_button = QPushButton("Load Image")
-        self.load_button.clicked.connect(self.load_image)
-
         # Clear buttons
         self.clear_button = QPushButton("Clear Seeds")
         self.clear_button.clicked.connect(self.clear_seeds)
 
-        # Run segmentation button
-        self.run_button = QPushButton("Run Segmentation")
-        # self.run_button.clicked.connect(self.run_segmentation)
-
         # Threshold slider (for region growing)
         self.threshold_label = QLabel("Region Growing Threshold:")
         self.threshold_slider = QSlider(Qt.Horizontal)
+        self.threshold_value_label = QLabel("50")
+        self.threshold_slider.setToolTip("Adjust the threshold for region growing")
+        self.threshold_slider.valueChanged.connect(self.update_threshold)
         self.threshold_slider.setRange(0, 255)
         self.threshold_slider.setValue(50)  # Default threshold value
         self.threshold_slider.setSingleStep(5)
-        self.threshold_slider.valueChanged.connect(lambda value: setattr(self, 'threshold', value))
 
         # Add widgets to controls
         controls.addWidget(self.clear_button)
-        controls.addWidget(self.run_button)
         controls.addWidget(self.threshold_label)
         controls.addWidget(self.threshold_slider)
-        controls.addWidget(self.load_button)
+        controls.addWidget(self.threshold_value_label)
 
         # Status bar for coordinates
         self.status_label = QLabel("Position: ")
@@ -286,18 +279,12 @@ class SeedPixelWidget(QWidget):
         layout.addStretch()
         layout.addWidget(self.status_label)
 
-    def load_image(self):
-        # """Load an image from file"""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Open Image", "", "Image Files (*.png *.jpg *.jpeg *.bmp)"
-        )
-
-        if file_path:
-            # Load the image
-            self.image = QImage(file_path)
-            if not self.image.isNull():
-                # Set image to seed widget
-                self.set_image(file_path)
+    def update_threshold(self):
+        """Update the threshold value and display it"""
+        value = self.threshold_slider.value()
+        self.threshold = value
+        self.threshold_value_label.setText(str(value))
+        self.update()
 
     def set_image(self, image):
         """Set the image for segmentation (NumPy array or file path)"""
@@ -307,6 +294,7 @@ class SeedPixelWidget(QWidget):
             if self.image.isNull():
                 raise ValueError(f"Failed to load image from {image}")
         elif isinstance(image, np.ndarray):
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB if needed
             # Convert numpy array to QImage
             height, width = image.shape[:2]
             if len(image.shape) == 2:  # Grayscale
@@ -506,12 +494,21 @@ class RegionGrowingDialog(QDialog):
         # Reset result when seeds change
         self.segmentation_result = None
 
+    def show_message(self, message):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Information)
+        msg.setText(message)
+        msg.setWindowTitle("Thresholding Status")
+        msg.exec_()
+
     def run_segmentation(self):
         """Run the segmentation and emit the result"""
         try:
             seed_pixels = self.seed_widget.get_seed_pixels()
             if not seed_pixels:
                 print('No seeds defined')
+                self.seed_widget.status_label.setText("No seeds defined")
+                self.show_message("No seeds defined")
                 return
 
             threshold = self.seed_widget.threshold

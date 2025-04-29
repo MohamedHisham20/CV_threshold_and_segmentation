@@ -193,6 +193,9 @@ class MainWindow(QMainWindow):
         elif self.meanShift_check.isChecked():
             self.regionGrowing_check.setChecked(False)
             return self.apply_meanShift()
+        else:
+            self.show_message("Please select a segmentation method")
+            return
 
     def apply_region_growing(self):
         if self.regionGrowing_check.isChecked():
